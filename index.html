@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OasisMovies — Premium Live Streaming</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Ambient Backdrop Glow -->
+  <div class="ambient-glow" id="ambientGlow"></div>
+
+  <!-- Navigation Bar -->
+  <header class="navbar" id="navbar">
+    <div class="nav-left">
+      <div class="brand-logo" onclick="app.showHome()">
+        <span class="logo-icon">🎬</span>
+        <span class="logo-text">OASIS<span class="highlight">MOVIES</span></span>
+      </div>
+      <nav class="nav-links">
+        <button class="nav-btn active" id="navHome" onclick="app.showHome()">Home</button>
+        <button class="nav-btn" id="navMovies" onclick="app.filterType('movie')">Movies</button>
+        <button class="nav-btn" id="navTV" onclick="app.filterType('tv')">TV Series</button>
+        <button class="nav-btn" id="navTop" onclick="app.filterCategory('top_rated')">Top Rated</button>
+        <button class="nav-btn" id="navList" onclick="app.showWatchlist()">My List (<span id="watchlistCount">0</span>)</button>
+      </nav>
+    </div>
+
+    <div class="nav-right">
+      <div class="search-box">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" id="searchInput" placeholder="Search movies, TV shows, actors..." autocomplete="off">
+        <button class="clear-search-btn" id="clearSearchBtn" onclick="app.clearSearch()" style="display: none;">✕</button>
+      </div>
+
+      <div class="mode-toggle-pill" id="modePill" onclick="app.toggleAdMode()" title="Toggle between Ad-Free Personal Mode and Ad-Monetization Test Mode">
+        <span class="mode-badge" id="modeBadge">AD-FREE MODE</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Spotlight Section -->
+  <section class="hero-section" id="heroSection">
+    <div class="hero-backdrop" id="heroBackdrop"></div>
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+      <div class="hero-tag" id="heroTag">TRENDING #1 TODAY</div>
+      <h1 class="hero-title" id="heroTitle">Loading Spotlight...</h1>
+      <div class="hero-meta">
+        <span class="badge rating-badge" id="heroRating">★ 8.8</span>
+        <span class="badge year-badge" id="heroYear">2026</span>
+        <span class="badge quality-badge">4K ULTRA HD</span>
+        <span class="badge type-badge" id="heroType">MOVIE</span>
+      </div>
+      <p class="hero-overview" id="heroOverview">Experience cinema without limits. High-definition streaming powered by global multi-server failover.</p>
+      <div class="hero-actions">
+        <button class="btn btn-primary" id="heroPlayBtn" onclick="app.playHeroMovie()">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          Watch Now
+        </button>
+        <button class="btn btn-secondary" id="heroInfoBtn" onclick="app.infoHeroMovie()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          More Details
+        </button>
+        <button class="btn btn-icon" id="heroBookmarkBtn" onclick="app.toggleHeroBookmark()" title="Add to My List">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Content Area -->
+  <main class="main-container" id="mainContainer">
+    <!-- Search Results View (Hidden by default) -->
+    <section class="section search-results-section" id="searchResultsSection" style="display: none;">
+      <div class="section-header">
+        <h2 class="section-title">Search Results for "<span id="searchQueryText"></span>"</h2>
+        <span class="result-count" id="searchResultCount">0 titles found</span>
+      </div>
+      <div class="movie-grid" id="searchGrid"></div>
+    </section>
+
+    <!-- Genre / Quick Filter Tabs -->
+    <div class="genre-pill-bar" id="genreBar">
+      <button class="genre-pill active" onclick="app.selectGenre('all')">All</button>
+      <button class="genre-pill" onclick="app.selectGenre(28)">Action</button>
+      <button class="genre-pill" onclick="app.selectGenre(878)">Sci-Fi</button>
+      <button class="genre-pill" onclick="app.selectGenre(53)">Thriller</button>
+      <button class="genre-pill" onclick="app.selectGenre(35)">Comedy</button>
+      <button class="genre-pill" onclick="app.selectGenre(18)">Drama</button>
+      <button class="genre-pill" onclick="app.selectGenre(27)">Horror</button>
+      <button class="genre-pill" onclick="app.selectGenre(16)">Animation</button>
+    </div>
+
+    <!-- Category Sliders / Grids -->
+    <section class="section" id="secTrendingMovies">
+      <div class="section-header">
+        <h2 class="section-title">🔥 Trending Movies</h2>
+        <span class="view-all" onclick="app.filterType('movie')">Explore All ›</span>
+      </div>
+      <div class="movie-carousel" id="carouselTrendingMovies"></div>
+    </section>
+
+    <section class="section" id="secTrendingTV">
+      <div class="section-header">
+        <h2 class="section-title">📺 Binge-Worthy TV Series</h2>
+        <span class="view-all" onclick="app.filterType('tv')">Explore All ›</span>
+      </div>
+      <div class="movie-carousel" id="carouselTrendingTV"></div>
+    </section>
+
+    <section class="section" id="secTopRated">
+      <div class="section-header">
+        <h2 class="section-title">⭐ All-Time Masterpieces</h2>
+        <span class="view-all" onclick="app.filterCategory('top_rated')">View Ranked ›</span>
+      </div>
+      <div class="movie-carousel" id="carouselTopRated"></div>
+    </section>
+
+    <section class="section" id="secAction">
+      <div class="section-header">
+        <h2 class="section-title">💥 High-Octane Action</h2>
+      </div>
+      <div class="movie-carousel" id="carouselAction"></div>
+    </section>
+
+    <section class="section" id="secSciFi">
+      <div class="section-header">
+        <h2 class="section-title">🚀 Sci-Fi & Future Worlds</h2>
+      </div>
+      <div class="movie-carousel" id="carouselSciFi"></div>
+    </section>
+  </main>
+
+  <!-- Unified Video Player Modal -->
+  <div class="modal player-modal" id="playerModal">
+    <div class="player-modal-backdrop" onclick="app.closePlayer()"></div>
+    <div class="player-modal-container">
+      <div class="player-header">
+        <div class="player-title-info">
+          <span class="player-media-badge" id="playerBadge">MOVIE</span>
+          <h3 class="player-title" id="playerTitle">Movie Title</h3>
+          <span class="player-subinfo" id="playerSubInfo">2026 • 2h 15m</span>
+        </div>
+        
+        <div class="player-controls-top">
+          <!-- Server Switcher Dropdown -->
+          <div class="server-dropdown-wrapper">
+            <label for="serverSelect" class="server-label">Server:</label>
+            <select id="serverSelect" class="server-select" onchange="app.changeServer(this.value)">
+              <option value="vidlink" selected>Server 1 — VidLink (Ultra Fast, Clean)</option>
+              <option value="embedsu">Server 2 — Embed.su (Multi-Source 4K)</option>
+              <option value="vidsrc_xyz">Server 3 — VidSrc.xyz (Reliable Stream)</option>
+              <option value="multiembed">Server 4 — MultiEmbed (Reliable Fallback)</option>
+              <option value="vidsrc_cc">Server 5 — VidSrc.cc (High Speed)</option>
+              <option value="smashy">Server 6 — SmashyStream (#56 Directory)</option>
+              <option value="vidsrc_to">Server 7 — VidSrc.to (Legacy Mirror)</option>
+            </select>
+          </div>
+
+          <button class="btn-close-player" onclick="app.closePlayer()" title="Close Player (ESC)">✕</button>
+        </div>
+      </div>
+
+      <!-- Live Video Player Frame -->
+      <div class="video-frame-wrapper" id="videoFrameWrapper">
+        <div class="player-loader" id="playerLoader">
+          <div class="spinner"></div>
+          <span>Connecting to stream server...</span>
+        </div>
+        <iframe id="videoIframe" class="video-iframe" src="" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture"></iframe>
+      </div>
+
+      <!-- TV Series Season/Episode Drawer -->
+      <div class="tv-controls-drawer" id="tvDrawer" style="display: none;">
+        <div class="tv-drawer-header">
+          <div class="season-selector-wrapper">
+            <label for="seasonSelect">Season:</label>
+            <select id="seasonSelect" onchange="app.loadSeasonEpisodes(this.value)"></select>
+          </div>
+          <span class="ep-count-text" id="epCountText">Episodes</span>
+        </div>
+        <div class="episode-grid" id="episodeGrid"></div>
+      </div>
+
+      <!-- Player Footer Details -->
+      <div class="player-footer">
+        <p class="player-overview-text" id="playerOverview"></p>
+        <div class="player-footer-actions">
+          <button class="btn btn-secondary btn-sm" id="playerBookmarkBtn" onclick="app.toggleCurrentBookmark()">
+            Bookmark Title
+          </button>
+          <span class="server-tip">💡 Tip: If video buffers or fails, switch Server (1 through 6) above.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail Information Modal -->
+  <div class="modal detail-modal" id="detailModal">
+    <div class="modal-backdrop" onclick="app.closeDetailModal()"></div>
+    <div class="detail-card">
+      <button class="btn-close-modal" onclick="app.closeDetailModal()">✕</button>
+      <div class="detail-banner" id="detailBanner"></div>
+      <div class="detail-body">
+        <h2 class="detail-title" id="detailTitle"></h2>
+        <div class="detail-meta-row" id="detailMeta"></div>
+        <p class="detail-synopsis" id="detailSynopsis"></p>
+        <div class="detail-actions">
+          <button class="btn btn-primary" id="detailPlayBtn">Watch Now</button>
+          <button class="btn btn-secondary" id="detailBookmarkBtn">Save to List</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <span class="logo-icon">🎬</span>
+        <span class="logo-text">OASIS<span class="highlight">MOVIES</span></span>
+      </div>
+      <p class="footer-disclaimer">
+        OasisMovies is a high-speed personal media catalog aggregator. All streams are embedded directly via decentralized public APIs. No video files are stored on this server.
+      </p>
+      <div class="footer-status">
+        <span class="status-indicator online"></span> 6 Global Embed Servers Online • TMDB API Connected
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
