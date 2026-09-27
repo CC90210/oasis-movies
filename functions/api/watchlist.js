@@ -6,8 +6,8 @@
 // Cloud sync is an account-tier feature: role 'user' stays on browser
 // localStorage and gets 403 { error: 'upgrade_required' }.
 
-import { json, getSessionUser, newId, isoNow } from '../../lib/auth.js';
-import { tursoQuery, tursoExec } from '../../lib/turso.js';
+import { json, getSessionUser, newId, isoNow } from '../lib/auth.js';
+import { tursoQuery, tursoExec } from '../lib/turso.js';
 
 async function authorize(request, env) {
   const user = await getSessionUser(request, env);
