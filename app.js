@@ -343,29 +343,6 @@
         })
       }).catch((err) => console.warn('Stream start telemetry log failed:', err));
 
-      // Log partner sponsor ad impression if banner is present
-      if (document.getElementById('partnerAdBanner')) {
-        this.apiFetch('/api/analytics/event', {
-          method: 'POST',
-          body: JSON.stringify({
-            event_type: 'ad_impression',
-            tmdb_id: this.currentMedia.id,
-            title: 'AliExpress Home Cinema Deals',
-            media_type: isTV ? 'tv' : 'movie'
-          })
-        }).catch((err) => console.warn('Ad impression telemetry log failed:', err));
-      }
-    }
-
-    logAdClick() {
-      this.apiFetch('/api/analytics/event', {
-        method: 'POST',
-        body: JSON.stringify({
-          event_type: 'ad_impression',
-          title: 'AliExpress Cinema Banner Click',
-          media_type: 'movie'
-        })
-      }).catch((err) => console.warn('Ad click telemetry log failed:', err));
     }
 
     changeServer(serverKey) {
