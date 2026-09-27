@@ -555,17 +555,33 @@
       countEl.textContent = 'Loading titles...';
       grid.innerHTML = '<div class="loading-state">Fetching from TMDB...</div>';
 
-      const data = await this.fetchTMDB(endpoint);
-      if (!data || !data.results || data.results.length === 0) {
+      // Fetch up to 4 pages (80 results) for deeper catalog variety
+      const fetchPromises = [];
+      const hasQuery = endpoint.includes('?');
+      for (let page = 1; page <= 4; page++) {
+        fetchPromises.push(this.fetchTMDB(`${endpoint}${hasQuery ? '&' : '?'}page=${page}`));
+      }
+
+      const responses = await Promise.all(fetchPromises);
+      const allResults = [];
+      responses.forEach((data) => {
+        if (data && data.results) {
+          allResults.push(...data.results);
+        }
+      });
+
+      if (allResults.length === 0) {
         grid.innerHTML = '<div class="empty-state">No titles found.</div>';
         countEl.textContent = '0 titles';
         return;
       }
 
-      countEl.textContent = `${data.results.length} titles available`;
+      const uniqueResults = Array.from(new Map(allResults.map(item => [item.id, item])).values());
+
+      countEl.textContent = `${uniqueResults.length} titles available`;
       grid.innerHTML = '';
 
-      data.results.forEach((item) => {
+      uniqueResults.forEach((item) => {
         if (!item.poster_path) return;
         if (!item.media_type) item.media_type = defaultType;
         this.cacheItem(item);
@@ -585,20 +601,36 @@
       countEl.textContent = 'Searching...';
       grid.innerHTML = '<div class="loading-state">Searching catalog...</div>';
 
-      const data = await this.fetchTMDB('/search/multi', { query });
-      if (!data || !data.results || data.results.length === 0) {
+      // Fetch 3 pages for deeper search results
+      const fetchPromises = [
+        this.fetchTMDB('/search/multi', { query, page: 1 }),
+        this.fetchTMDB('/search/multi', { query, page: 2 }),
+        this.fetchTMDB('/search/multi', { query, page: 3 })
+      ];
+
+      const responses = await Promise.all(fetchPromises);
+      const allResults = [];
+      responses.forEach((data) => {
+        if (data && data.results) {
+          allResults.push(...data.results);
+        }
+      });
+
+      if (allResults.length === 0) {
         grid.innerHTML = `<div class="empty-state">No movies or TV shows found matching "${this.escapeHtml(query)}".</div>`;
         countEl.textContent = '0 titles found';
         return;
       }
 
-      const filtered = data.results.filter(
+      const filtered = allResults.filter(
         (r) => (r.media_type === 'movie' || r.media_type === 'tv') && r.poster_path
       );
+      
+      const uniqueResults = Array.from(new Map(filtered.map(item => [item.id, item])).values());
 
-      countEl.textContent = `${filtered.length} titles found`;
+      countEl.textContent = `${uniqueResults.length} titles found`;
       grid.innerHTML = '';
-      filtered.forEach((item) => {
+      uniqueResults.forEach((item) => {
         this.cacheItem(item);
         grid.appendChild(this.createCardElement(item));
       });
