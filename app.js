@@ -372,6 +372,20 @@
       }
     }
 
+    nextServer() {
+      const serverKeys = Object.keys(SERVERS);
+      let currentIndex = serverKeys.indexOf(this.currentServer);
+      if (currentIndex === -1) currentIndex = 0;
+      
+      const nextIndex = (currentIndex + 1) % serverKeys.length;
+      this.currentServer = serverKeys[nextIndex];
+      
+      const select = document.getElementById('cinemaServerSelect');
+      if (select) select.value = this.currentServer;
+      
+      this.loadCinemaStream();
+    }
+
     async setupCinemaTV(tvItem) {
       const select = document.getElementById('cinemaSeasonSelect');
       select.innerHTML = '<option>Loading seasons...</option>';

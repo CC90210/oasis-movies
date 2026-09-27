@@ -234,6 +234,15 @@
               </select>
             </div>
 
+            <!-- Try Next Server Button -->
+            <button class="btn btn-primary btn-sm btn-next-server" onclick="app.nextServer()" title="Switch to the next server if video doesn't load">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right: 4px;">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+              </svg>
+              Try Next Server
+            </button>
+
             <!-- Fullscreen Toggle Button -->
             <button class="btn btn-secondary btn-sm btn-fullscreen" onclick="app.toggleCinemaFullscreen()" title="Toggle Fullscreen">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -283,7 +292,7 @@
 
         <div class="server-status-card">
           <div class="status-tip-text">
-            <span>💡 <strong>Streaming Tips:</strong> If stream buffers or pauses, select another server above. <strong>Server 1 & 2</strong> provide the highest bitrate 1080p/4K streams.</span>
+            <span>💡 <strong>Video Not Loading?</strong> Not all servers carry every movie or show. Click <strong>"Try Next Server"</strong> above or select a different server from the dropdown until you find one that plays.</span>
           </div>
         </div>
       </div>
