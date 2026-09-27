@@ -16,18 +16,19 @@
   <!-- Navigation Bar -->
   <header class="navbar" id="navbar">
     <div class="nav-left">
+      <button class="nav-burger" id="navBurger" onclick="app.toggleMobileNav()" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
       <a href="#/" class="brand-logo">
         <span class="logo-icon">🎬</span>
         <span class="logo-text">OASIS<span class="highlight">MOVIES</span></span>
       </a>
       <nav class="nav-links">
-        <a href="#/" class="nav-btn" id="navHome">Home</a>
-        <a href="#/movies" class="nav-btn" id="navMovies">Movies</a>
-        <a href="#/tv" class="nav-btn" id="navTV">TV Series</a>
-        <a href="#/top-rated" class="nav-btn" id="navTop">Top Rated</a>
-        <a href="#/watchlist" class="nav-btn" id="navList">My List (<span id="watchlistCount">0</span>)</a>
-        <a href="#/pricing" class="nav-btn nav-vip-btn" id="navPricing">⭐ VIP Pass</a>
-        <a href="#/admin" class="nav-btn nav-admin-btn" id="navAdmin">📊 Admin</a>
+        <a href="#/" class="nav-btn" data-nav="#/">Home</a>
+        <a href="#/movies" class="nav-btn" data-nav="#/movies">Movies</a>
+        <a href="#/tv" class="nav-btn" data-nav="#/tv">TV Series</a>
+        <a href="#/top-rated" class="nav-btn" data-nav="#/top-rated">Top Rated</a>
+        <a href="#/watchlist" class="nav-btn" data-nav="#/watchlist">My List <span class="nav-count" data-watchlist-count>0</span></a>
       </nav>
     </div>
 
@@ -41,22 +42,55 @@
         <button class="clear-search-btn" id="clearSearchBtn" onclick="app.clearSearch()" style="display: none;">✕</button>
       </div>
 
-      <div class="auth-nav" id="authNavLoggedOut">
-        <button class="btn btn-secondary btn-sm" onclick="app.openAuthModal('login')">Log In</button>
-        <button class="btn btn-primary btn-sm" onclick="app.openAuthModal('register')">Sign Up</button>
-      </div>
+      <a href="#/admin" class="nav-admin-btn" id="navAdmin" data-nav="#/admin" hidden>Admin</a>
+      <a href="#/pricing" class="nav-vip-pill" id="navPricing" data-nav="#/pricing">👑 VIP</a>
 
-      <div class="user-chip" id="authNavLoggedIn" style="display: none;">
-        <span class="user-chip-email" id="userChipEmail"></span>
-        <span class="badge user-chip-role" id="userChipRole">USER</span>
-        <button class="btn btn-secondary btn-sm" onclick="app.logout()">Log Out</button>
-      </div>
+      <button class="btn btn-primary btn-sm nav-signin" id="authNavLoggedOut" onclick="app.openAuthModal('login')">Sign In</button>
 
-      <div class="mode-toggle-pill" id="modePill" onclick="app.toggleAdMode()" title="Toggle between Ad-Free Personal Mode and Ad-Monetization Test Mode">
-        <span class="mode-badge" id="modeBadge">AD-FREE MODE</span>
+      <div class="account-menu" id="authNavLoggedIn" hidden>
+        <button class="account-chip" id="accountChip" onclick="app.toggleAccountMenu()" aria-haspopup="menu" aria-expanded="false">
+          <span class="account-avatar" id="accountAvatar">?</span>
+          <span class="account-email" id="userChipEmail"></span>
+          <span class="tier-badge" id="userChipRole">FREE</span>
+          <svg class="account-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+        <div class="account-dropdown" id="accountDropdown" role="menu" hidden>
+          <div class="account-dropdown-head">
+            <span class="account-dropdown-label">Signed in as</span>
+            <span class="account-dropdown-email" id="accountMenuEmail"></span>
+          </div>
+          <a href="#/watchlist" class="account-item" role="menuitem">⭐ My Watchlist</a>
+          <a href="#/pricing" class="account-item" id="accountVipItem" role="menuitem">👑 VIP Membership</a>
+          <a href="#/admin" class="account-item account-item-admin" id="accountAdminItem" role="menuitem" hidden>📊 Admin Telemetry Console</a>
+          <div class="account-divider"></div>
+          <button class="account-item account-item-danger" onclick="app.logout()" role="menuitem">🚪 Log Out</button>
+        </div>
       </div>
     </div>
   </header>
+
+  <!-- Mobile Navigation Drawer (< 1024px) -->
+  <div class="mobile-drawer" id="mobileDrawer" hidden>
+    <div class="mobile-drawer-backdrop" onclick="app.closeMobileNav()"></div>
+    <nav class="mobile-drawer-panel">
+      <div class="mobile-drawer-head">
+        <span class="logo-text">OASIS<span class="highlight">MOVIES</span></span>
+        <button class="mobile-drawer-close" onclick="app.closeMobileNav()" aria-label="Close menu">✕</button>
+      </div>
+      <a href="#/" class="drawer-link" data-nav="#/">Home</a>
+      <a href="#/movies" class="drawer-link" data-nav="#/movies">Movies</a>
+      <a href="#/tv" class="drawer-link" data-nav="#/tv">TV Series</a>
+      <a href="#/top-rated" class="drawer-link" data-nav="#/top-rated">Top Rated</a>
+      <a href="#/watchlist" class="drawer-link" data-nav="#/watchlist">My List <span class="nav-count" data-watchlist-count>0</span></a>
+      <div class="drawer-divider"></div>
+      <a href="#/pricing" class="drawer-link drawer-link-vip" data-nav="#/pricing">👑 VIP Membership</a>
+      <a href="#/admin" class="drawer-link drawer-link-admin" id="drawerAdminLink" data-nav="#/admin" hidden>📊 Admin Telemetry Console</a>
+      <button class="drawer-link drawer-link-button" id="drawerSignIn" onclick="app.closeMobileNav(); app.openAuthModal('login')">Sign In</button>
+      <button class="drawer-link drawer-link-button drawer-link-danger" id="drawerLogOut" onclick="app.closeMobileNav(); app.logout()" hidden>🚪 Log Out</button>
+    </nav>
+  </div>
 
   <!-- Main Multi-View Container -->
   <main class="main-container" id="mainContainer">
@@ -347,7 +381,53 @@
       </div>
     </div>
 
-    <!-- 5. ADMIN & AD TELEMETRY DASHBOARD VIEW -->
+    <!-- 5a. ADMIN AUTHENTICATION GATEWAY (sign-in / first-time setup / access denied) -->
+    <div id="adminGateView" class="view-panel" style="display: none;">
+      <div class="admin-gate">
+        <div class="admin-gate-card">
+          <div class="admin-gate-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="26" height="26">
+              <rect x="4" y="11" width="16" height="10" rx="2"></rect>
+              <path d="M8 11V7a4 4 0 0 1 8 0v4"></path>
+            </svg>
+          </div>
+          <span class="admin-gate-eyebrow" id="adminGateEyebrow">Restricted area</span>
+          <h1 class="admin-gate-title" id="adminGateTitle">Administrator Access</h1>
+          <p class="admin-gate-sub" id="adminGateSub">Sign in with an administrator account to open the telemetry console.</p>
+
+          <div class="auth-message" id="adminGateMessage" hidden></div>
+          <div class="auth-error" id="adminGateError" hidden></div>
+
+          <form class="admin-gate-form" id="adminGateForm" novalidate>
+            <div class="form-group" id="adminGateKeyGroup" hidden>
+              <label for="adminGateKey">Setup Key</label>
+              <input type="password" id="adminGateKey" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="form-group">
+              <label for="adminGateEmail">Admin Email</label>
+              <input type="email" id="adminGateEmail" placeholder="you@domain.com" autocomplete="username">
+            </div>
+            <div class="form-group">
+              <label for="adminGatePassword" id="adminGatePasswordLabel">Password</label>
+              <input type="password" id="adminGatePassword" placeholder="••••••••" autocomplete="current-password">
+            </div>
+            <div class="form-group" id="adminGateConfirmGroup" hidden>
+              <label for="adminGateConfirm">Confirm Password</label>
+              <input type="password" id="adminGateConfirm" placeholder="••••••••" autocomplete="new-password">
+            </div>
+            <button type="submit" class="btn btn-primary full-width" id="adminGateSubmit">Sign In to Console</button>
+          </form>
+
+          <div class="admin-gate-denied" id="adminGateDenied" hidden>
+            <button class="btn btn-secondary full-width" onclick="app.switchToAdminLogin()">Sign In With a Different Account</button>
+          </div>
+
+          <a href="#/" class="admin-gate-back">← Back to OasisMovies</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5b. ADMIN & AD TELEMETRY DASHBOARD VIEW -->
     <div id="adminView" class="view-panel" style="display: none;">
       <div class="admin-container">
         <div class="admin-header">
@@ -545,6 +625,9 @@
       </div>
     </div>
   </footer>
+
+  <!-- Toast Notifications -->
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
   <script src="app.js"></script>
 </body>

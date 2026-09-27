@@ -78,11 +78,8 @@
       this.currentEpisode = 1;
       this.mediaCache = new Map();
 
-      // User & Membership State
-      this.isVIP = localStorage.getItem('oasis_is_vip') === 'true';
+      // User & Watchlist State
       this.watchlist = JSON.parse(localStorage.getItem('oasis_watchlist') || '[]');
-      this.adMode = localStorage.getItem('oasis_ad_mode') === 'true'; // false = clean default
-      this.hasPoppedThisSession = false;
 
       // Auth & Account State
       this.currentUser = null;
@@ -99,12 +96,12 @@
 
       this.searchTimer = null;
       this.previousRoute = '#/';
+      this.adminGateMode = 'login';
     }
 
     async init() {
       this.setupGlobalEvents();
       this.updateWatchlistCounter();
-      this.renderAdModeUI();
 
       // Restore persisted session (if any) before routing so guards see currentUser
       await this.restoreSession();
@@ -137,6 +134,8 @@
 
       // Update Navigation Active State
       this.updateNavLinks(hash);
+      this.closeAccountMenu();
+      this.closeMobileNav();
 
       const root = segments[0] || '';
 
@@ -152,7 +151,13 @@
           break;
 
         case 'tv':
-          this.renderCatalogView('Popular TV Series', '/tv/popular', 'tv', 'Home › TV Series');
+          if (segments[1]) {
+            const season = parseInt(segments[2], 10) || 1;
+            const episode = parseInt(segments[3], 10) || 1;
+            await this.renderWatchView(segments[1], 'tv', season, episode);
+          } else {
+            this.renderCatalogView('Popular TV Series', '/tv/popular', 'tv', 'Home › TV Series');
+          }
           break;
 
         case 'top-rated':
@@ -184,13 +189,6 @@
           await this.renderWatchView(movieId, 'movie');
           break;
 
-        case 'tv':
-          const tvId = segments[1];
-          const season = parseInt(segments[2], 10) || 1;
-          const episode = parseInt(segments[3], 10) || 1;
-          await this.renderWatchView(tvId, 'tv', season, episode);
-          break;
-
         case 'pricing':
           this.switchView('pricingView');
           document.title = 'OasisMovies — VIP Membership Tiers';
@@ -198,14 +196,16 @@
           break;
 
         case 'admin':
+          if (segments[1] === 'setup') {
+            this.renderAdminGate('setup', new URLSearchParams(queryString || ''));
+            return;
+          }
           if (!this.currentUser) {
-            this.openAuthModal('login', 'Please log in with admin credentials to access the Telemetry Hub.');
-            this.navigateTo('#/');
+            this.renderAdminGate('login');
             return;
           }
           if (this.currentUser.role !== 'admin') {
-            alert('⛔ Admin access required. Your account does not have permission to view the Telemetry Hub.');
-            this.navigateTo('#/');
+            this.renderAdminGate('denied');
             return;
           }
           this.switchView('adminView');
@@ -221,7 +221,7 @@
     }
 
     switchView(activeViewId) {
-      const views = ['homeView', 'browseView', 'watchView', 'pricingView', 'adminView'];
+      const views = ['homeView', 'browseView', 'watchView', 'pricingView', 'adminGateView', 'adminView'];
       views.forEach((v) => {
         const el = document.getElementById(v);
         if (el) {
@@ -232,25 +232,15 @@
     }
 
     updateNavLinks(hash) {
-      const map = {
-        '#/': 'navHome',
-        '#/movies': 'navMovies',
-        '#/tv': 'navTV',
-        '#/top-rated': 'navTop',
-        '#/watchlist': 'navList',
-        '#/pricing': 'navPricing',
-        '#/admin': 'navAdmin'
-      };
-
-      document.querySelectorAll('.nav-btn').forEach((btn) => btn.classList.remove('active'));
-
-      for (const [prefix, id] of Object.entries(map)) {
-        if (hash === prefix || (prefix !== '#/' && hash.startsWith(prefix))) {
-          const activeBtn = document.getElementById(id);
-          if (activeBtn) activeBtn.classList.add('active');
-          return;
-        }
-      }
+      // Navbar and mobile drawer links both carry data-nav="<route prefix>"
+      const path = hash.split('?')[0];
+      document.querySelectorAll('[data-nav]').forEach((link) => {
+        const prefix = link.dataset.nav;
+        const isActive = prefix === '#/'
+          ? path === '#/' || path === '' || path === '#'
+          : path === prefix || path.startsWith(`${prefix}/`);
+        link.classList.toggle('active', isActive);
+      });
     }
 
     // --- Dedicated Cinema Watch Sub-Page ---
@@ -267,7 +257,7 @@
       }
 
       if (!media) {
-        alert('Unable to load title details. Returning to home.');
+        this.showToast('Unable to load that title. Returning home.', 'error');
         this.navigateTo('#/');
         return;
       }
@@ -275,9 +265,6 @@
       this.currentMedia = media;
       this.currentSeason = season;
       this.currentEpisode = episode;
-
-      // Handle Ad Trigger if Monetization Mode is Active
-      this.handleAdTrigger();
 
       const title = media.title || media.name || 'Untitled';
       const year = (media.release_date || media.first_air_date || '').split('-')[0] || '2026';
@@ -429,9 +416,9 @@
 
     copyShareLink() {
       const url = window.location.href;
-      navigator.clipboard.writeText(url).then(() => {
-        alert(`🔗 Direct stream link copied to clipboard!\n\n${url}`);
-      });
+      navigator.clipboard.writeText(url)
+        .then(() => this.showToast('Link copied to clipboard.', 'success'))
+        .catch(() => this.showToast('Could not copy the link. Copy it from the address bar.', 'error'));
     }
 
     async loadSimilarTitles(id, type) {
@@ -713,10 +700,23 @@
           this.closeDetailModal();
           this.closeCheckoutModal();
           this.closeAuthModal();
+          this.closeAccountMenu();
+          this.closeMobileNav();
         } else if (e.key === '/' && document.activeElement !== searchInput) {
           e.preventDefault();
           searchInput?.focus();
         }
+      });
+
+      // Close the account dropdown on any click outside it
+      document.addEventListener('click', (e) => {
+        const menu = document.getElementById('authNavLoggedIn');
+        if (menu && !menu.contains(e.target)) this.closeAccountMenu();
+      });
+
+      document.getElementById('adminGateForm')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.submitAdminGate();
       });
 
       ['authEmail', 'authPassword'].forEach((id) => {
@@ -797,12 +797,21 @@
       const btn = document.getElementById(btnId);
       if (!btn) return;
       const isSaved = this.isInWatchlist(mediaId);
+
+      // Icon-only buttons keep their bookmark glyph; state shows via the active fill
+      if (btn.classList.contains('btn-icon')) {
+        btn.classList.toggle('active', isSaved);
+        btn.title = isSaved ? 'Remove from My List' : 'Add to My List';
+        btn.setAttribute('aria-label', btn.title);
+        return;
+      }
       btn.textContent = isSaved ? '✓ In Watchlist' : '+ Bookmark';
     }
 
     updateWatchlistCounter() {
-      const countEl = document.getElementById('watchlistCount');
-      if (countEl) countEl.textContent = this.watchlist.length;
+      document.querySelectorAll('[data-watchlist-count]').forEach((el) => {
+        el.textContent = this.watchlist.length;
+      });
     }
 
     // --- Auth & Account State ---
@@ -840,18 +849,232 @@
     }
 
     renderAuthUI() {
-      const loggedOut = document.getElementById('authNavLoggedOut');
-      const loggedIn = document.getElementById('authNavLoggedIn');
-      if (!loggedOut || !loggedIn) return;
+      const user = this.currentUser;
+      const role = user?.role || 'user';
+      const isAdmin = role === 'admin';
+      const tier = { user: 'FREE', vip: 'VIP', admin: 'ADMIN' }[role] || 'FREE';
 
-      if (this.currentUser) {
-        loggedOut.style.display = 'none';
-        loggedIn.style.display = 'flex';
-        document.getElementById('userChipEmail').textContent = this.currentUser.email;
-        document.getElementById('userChipRole').textContent = (this.currentUser.role || 'user').toUpperCase();
+      document.getElementById('authNavLoggedOut').hidden = Boolean(user);
+      document.getElementById('authNavLoggedIn').hidden = !user;
+      document.getElementById('drawerSignIn').hidden = Boolean(user);
+      document.getElementById('drawerLogOut').hidden = !user;
+
+      // Admin entry points exist only for admin sessions
+      document.getElementById('navAdmin').hidden = !isAdmin;
+      document.getElementById('accountAdminItem').hidden = !isAdmin;
+      document.getElementById('drawerAdminLink').hidden = !isAdmin;
+
+      if (!user) {
+        this.closeAccountMenu();
+        return;
+      }
+
+      const email = user.email || '';
+      document.getElementById('accountAvatar').textContent = (email[0] || '?').toUpperCase();
+      document.getElementById('userChipEmail').textContent = email;
+      document.getElementById('accountMenuEmail').textContent = email;
+
+      const badge = document.getElementById('userChipRole');
+      badge.textContent = tier;
+      badge.dataset.tier = tier.toLowerCase();
+
+      document.getElementById('accountVipItem').textContent = role === 'user' ? '👑 VIP Membership' : '👑 Manage VIP';
+    }
+
+    // --- Account Menu & Mobile Drawer ---
+    toggleAccountMenu() {
+      const dropdown = document.getElementById('accountDropdown');
+      if (dropdown.hidden) {
+        dropdown.hidden = false;
+        document.getElementById('accountChip').setAttribute('aria-expanded', 'true');
       } else {
-        loggedOut.style.display = 'flex';
-        loggedIn.style.display = 'none';
+        this.closeAccountMenu();
+      }
+    }
+
+    closeAccountMenu() {
+      const dropdown = document.getElementById('accountDropdown');
+      if (!dropdown || dropdown.hidden) return;
+      dropdown.hidden = true;
+      document.getElementById('accountChip').setAttribute('aria-expanded', 'false');
+    }
+
+    toggleMobileNav() {
+      const drawer = document.getElementById('mobileDrawer');
+      if (drawer.hidden) {
+        drawer.hidden = false;
+        document.body.classList.add('drawer-open');
+        document.getElementById('navBurger').setAttribute('aria-expanded', 'true');
+      } else {
+        this.closeMobileNav();
+      }
+    }
+
+    closeMobileNav() {
+      const drawer = document.getElementById('mobileDrawer');
+      if (!drawer || drawer.hidden) return;
+      drawer.hidden = true;
+      document.body.classList.remove('drawer-open');
+      document.getElementById('navBurger').setAttribute('aria-expanded', 'false');
+    }
+
+    // --- Toast Notifications ---
+    showToast(message, variant = 'info') {
+      const stack = document.getElementById('toastStack');
+      if (!stack) return;
+
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${variant}`;
+      toast.textContent = message;
+      stack.appendChild(toast);
+
+      requestAnimationFrame(() => toast.classList.add('visible'));
+      setTimeout(() => {
+        toast.classList.remove('visible');
+        setTimeout(() => toast.remove(), 300);
+      }, 3200);
+    }
+
+    // --- Admin Authentication Gateway ---
+    // Modes: 'login' (no session), 'denied' (non-admin session), 'setup' (first-time claim via setup key)
+    renderAdminGate(mode, params = new URLSearchParams()) {
+      this.adminGateMode = mode;
+      this.switchView('adminGateView');
+      document.title = 'OasisMovies — Administrator Access';
+
+      const copy = {
+        login: {
+          eyebrow: 'Restricted area',
+          title: 'Administrator Access',
+          sub: 'Sign in with an administrator account to open the telemetry console.',
+          submit: 'Sign In to Console'
+        },
+        denied: {
+          eyebrow: 'Access denied',
+          title: 'Admins Only',
+          sub: 'This account does not have administrator access.',
+          submit: ''
+        },
+        setup: {
+          eyebrow: 'First-time setup',
+          title: 'Claim Admin Account',
+          sub: 'Set the email and password for the administrator account. An existing account with this email is promoted to admin and its old sessions are signed out.',
+          submit: 'Create Admin Account'
+        }
+      }[mode];
+
+      document.getElementById('adminGateEyebrow').textContent = copy.eyebrow;
+      document.getElementById('adminGateTitle').textContent = copy.title;
+      document.getElementById('adminGateSub').textContent = copy.sub;
+      document.getElementById('adminGateSubmit').textContent = copy.submit;
+      document.getElementById('adminGateView').dataset.mode = mode;
+
+      const isSetup = mode === 'setup';
+      document.getElementById('adminGateForm').hidden = mode === 'denied';
+      document.getElementById('adminGateDenied').hidden = mode !== 'denied';
+      document.getElementById('adminGateKeyGroup').hidden = !isSetup;
+      document.getElementById('adminGateConfirmGroup').hidden = !isSetup;
+      document.getElementById('adminGatePasswordLabel').textContent = isSetup ? 'New Password' : 'Password';
+      document.getElementById('adminGatePassword').autocomplete = isSetup ? 'new-password' : 'current-password';
+      document.getElementById('adminGatePassword').value = '';
+      document.getElementById('adminGateConfirm').value = '';
+      document.getElementById('adminGateError').hidden = true;
+
+      const message = document.getElementById('adminGateMessage');
+      message.hidden = true;
+      if (mode === 'denied' && this.currentUser) {
+        message.textContent = `Signed in as ${this.currentUser.email}.`;
+        message.hidden = false;
+      }
+
+      if (isSetup) {
+        const key = params.get('key');
+        if (key) {
+          document.getElementById('adminGateKey').value = key;
+          // Keep the setup key out of browser history once it has been read
+          history.replaceState(null, '', '#/admin/setup');
+        }
+      }
+
+      const focusId = isSetup && !document.getElementById('adminGateKey').value ? 'adminGateKey' : 'adminGateEmail';
+      if (mode !== 'denied') setTimeout(() => document.getElementById(focusId)?.focus(), 50);
+    }
+
+    async switchToAdminLogin() {
+      await this.logout({ silent: true, redirect: false });
+      this.renderAdminGate('login');
+    }
+
+    async submitAdminGate() {
+      const mode = this.adminGateMode;
+      const email = document.getElementById('adminGateEmail').value.trim();
+      const password = document.getElementById('adminGatePassword').value;
+      const errBox = document.getElementById('adminGateError');
+      const btn = document.getElementById('adminGateSubmit');
+      const idleLabel = btn.textContent;
+      const showError = (msg) => {
+        errBox.textContent = msg;
+        errBox.hidden = false;
+      };
+
+      errBox.hidden = true;
+
+      if (!email || !email.includes('@')) return showError('Enter a valid email address.');
+      if (!password) return showError('Enter a password.');
+
+      let endpoint = '/api/auth/login';
+      let payload = { email, password };
+
+      if (mode === 'setup') {
+        const key = document.getElementById('adminGateKey').value.trim();
+        const confirm = document.getElementById('adminGateConfirm').value;
+        if (!key) return showError('Enter the setup key.');
+        if (password.length < 12) return showError('Admin passwords must be at least 12 characters.');
+        if (password !== confirm) return showError('Passwords do not match.');
+        endpoint = '/api/admin/setup';
+        payload = { key, email, password };
+      }
+
+      btn.disabled = true;
+      btn.textContent = mode === 'setup' ? 'Creating Admin Account...' : 'Verifying...';
+
+      try {
+        const res = await this.apiFetch(endpoint, { method: 'POST', body: JSON.stringify(payload) });
+
+        if (res.ok && res.data && res.data.token) {
+          localStorage.setItem('oasis_auth_token', res.data.token);
+          this.currentUser = res.data.user;
+          document.getElementById('adminGatePassword').value = '';
+          document.getElementById('adminGateConfirm').value = '';
+          document.getElementById('adminGateKey').value = '';
+          this.renderAuthUI();
+          await this.syncWatchlistAfterLogin();
+
+          if (this.currentUser.role !== 'admin') {
+            this.renderAdminGate('denied');
+            return;
+          }
+          this.showToast(mode === 'setup' ? 'Admin account ready. Welcome in.' : 'Welcome back.', 'success');
+          this.navigateTo('#/admin');
+          return;
+        }
+
+        const code = res.data && res.data.error;
+        const messages = {
+          invalid_credentials: 'Incorrect email or password.',
+          invalid_email: 'Enter a valid email address.',
+          invalid_setup_key: 'That setup key is not valid.',
+          setup_disabled: 'Admin setup is turned off on this deployment.',
+          password_too_short: 'Admin passwords must be at least 12 characters.',
+          invalid_json: 'Something went wrong. Please try again.'
+        };
+        showError(messages[code] || 'Something went wrong. Please try again.');
+      } catch (err) {
+        console.error('Admin gateway request failed:', err);
+        showError('Unable to reach the server. Check your connection and try again.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = idleLabel;
       }
     }
 
@@ -945,16 +1168,16 @@
       }
     }
 
-    async logout() {
-      try {
-        await this.apiFetch('/api/auth/logout', { method: 'POST' });
-      } catch (err) {
-        console.warn('Logout request failed:', err);
-      }
+    async logout({ silent = false, redirect = true } = {}) {
+      // apiFetch reads the token synchronously, so the server-side revoke can run
+      // in the background while the UI signs out immediately
+      this.apiFetch('/api/auth/logout', { method: 'POST' })
+        .catch((err) => console.warn('Logout request failed:', err));
       localStorage.removeItem('oasis_auth_token');
       this.currentUser = null;
       this.renderAuthUI();
-      this.navigateTo('#/');
+      if (!silent) this.showToast('You are signed out.', 'info');
+      if (redirect) this.navigateTo('#/');
     }
 
     async syncWatchlistAfterLogin() {
@@ -1231,51 +1454,9 @@ oasisaisolutions@gmail.com`;
 
     copyPitchCopy() {
       const text = document.getElementById('pitchCodeBlock').textContent;
-      navigator.clipboard.writeText(text).then(() => {
-        alert('📋 Sponsor Pitch Copy copied to clipboard!');
-      });
-    }
-
-    // --- Ad Mode Toggle ---
-    toggleAdMode() {
-      this.adMode = !this.adMode;
-      localStorage.setItem('oasis_ad_mode', String(this.adMode));
-      this.renderAdModeUI();
-
-      if (this.adMode) {
-        alert('💰 Ad Monetization Test Mode ENABLED.\n\nSimulating 1 pop-under click per session on player launch.\nClick again anytime to return to 100% clean Ad-Free Personal Mode.');
-      } else {
-        alert('✨ AD-FREE MODE ACTIVATED.\n\nZero pop-ups, clean streaming experience for CC personal use.');
-      }
-    }
-
-    renderAdModeUI() {
-      const badge = document.getElementById('modeBadge');
-      const pill = document.getElementById('modePill');
-      if (!badge || !pill) return;
-
-      if (this.adMode) {
-        badge.textContent = 'MONETIZATION TEST MODE';
-        badge.style.color = '#f59e0b';
-        pill.style.borderColor = 'rgba(245, 158, 11, 0.4)';
-      } else {
-        badge.textContent = 'AD-FREE PERSONAL MODE';
-        badge.style.color = '#10b981';
-        pill.style.borderColor = 'rgba(16, 185, 129, 0.3)';
-      }
-    }
-
-    handleAdTrigger() {
-      if (!this.adMode || this.hasPoppedThisSession || this.isVIP) return;
-      this.hasPoppedThisSession = true;
-
-      try {
-        const win = window.open('https://oasis-ai.solutions', '_blank');
-        if (win) win.blur();
-        window.focus();
-      } catch (e) {
-        console.warn('Pop-under blocker active:', e);
-      }
+      navigator.clipboard.writeText(text)
+        .then(() => this.showToast('Sponsor pitch copied to clipboard.', 'success'))
+        .catch(() => this.showToast('Could not copy the pitch text.', 'error'));
     }
 
     // --- Quick Detail Modal (Optional Preview) ---
