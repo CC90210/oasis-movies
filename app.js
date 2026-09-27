@@ -379,7 +379,7 @@
       const details = await this.fetchTMDB(`/tv/${tvItem.id}`);
       if (!details || !details.seasons) {
         select.innerHTML = '<option value="1">Season 1</option>';
-        await this.loadCinemaEpisodes(1);
+        await this.loadCinemaEpisodes(1, false);
         return;
       }
 
@@ -389,45 +389,98 @@
       validSeasons.forEach((s) => {
         const opt = document.createElement('option');
         opt.value = s.season_number;
-        opt.textContent = `${s.name || 'Season ' + s.season_number} (${s.episode_count || '?'} eps)`;
+        opt.textContent = `${s.name || 'Season ' + s.season_number} (${s.episode_count || 0} eps)`;
         if (s.season_number === this.currentSeason) opt.selected = true;
         select.appendChild(opt);
       });
 
-      await this.loadCinemaEpisodes(this.currentSeason);
+      // Load episodes for the active season (without autoPlay because renderWatchView calls loadCinemaStream)
+      await this.loadCinemaEpisodes(this.currentSeason, false);
     }
 
-    async loadCinemaEpisodes(seasonNumber) {
+    loadSeasonEpisodes(seasonNumber) {
+      return this.loadCinemaEpisodes(seasonNumber, true);
+    }
+
+    async loadCinemaEpisodes(seasonNumber, autoPlay = true) {
       this.currentSeason = parseInt(seasonNumber, 10) || 1;
+      this.currentEpisode = 1;
+
+      // Sync select element value
+      const select = document.getElementById('cinemaSeasonSelect');
+      if (select && String(select.value) !== String(this.currentSeason)) {
+        select.value = String(this.currentSeason);
+      }
+
       const grid = document.getElementById('cinemaEpisodeGrid');
       const countText = document.getElementById('cinemaEpCountText');
 
-      grid.innerHTML = '<div class="loading-state">Loading episodes...</div>';
+      if (grid) grid.innerHTML = '<div class="loading-state">Loading episodes...</div>';
 
       const data = await this.fetchTMDB(`/tv/${this.currentMedia.id}/season/${this.currentSeason}`);
       if (!data || !data.episodes || data.episodes.length === 0) {
-        grid.innerHTML = '<div class="ep-empty">No episodes available.</div>';
+        if (countText) countText.textContent = `Season ${this.currentSeason} • 0 Episodes`;
+        if (grid) {
+          grid.innerHTML = `
+            <div class="ep-empty" style="padding: 24px; text-align: center; color: var(--text-muted); grid-column: 1 / -1;">
+              <p style="margin: 0 0 8px 0; font-size: 15px; color: #fff; font-weight: 600;">⚠️ Season ${this.currentSeason} has not released yet.</p>
+              <p style="margin: 0; font-size: 13px;">This season has no published episodes on the broadcast network yet. Please select an earlier season above to watch.</p>
+            </div>
+          `;
+        }
         return;
       }
 
-      countText.textContent = `${data.episodes.length} Episodes in Season ${this.currentSeason}`;
-      grid.innerHTML = '';
+      if (countText) countText.textContent = `${data.episodes.length} Episodes in Season ${this.currentSeason}`;
+      if (grid) {
+        grid.innerHTML = '';
+        data.episodes.forEach((ep) => {
+          const btn = document.createElement('button');
+          btn.className = `ep-btn ${ep.episode_number === this.currentEpisode ? 'active' : ''}`;
+          btn.innerHTML = `E${ep.episode_number}: <span>${this.escapeHtml(ep.name || 'Episode ' + ep.episode_number)}</span>`;
+          btn.onclick = () => {
+            this.switchEpisode(ep.episode_number);
+          };
+          grid.appendChild(btn);
+        });
+      }
 
-      data.episodes.forEach((ep) => {
-        const btn = document.createElement('button');
-        btn.className = `ep-btn ${ep.episode_number === this.currentEpisode ? 'active' : ''}`;
-        btn.innerHTML = `E${ep.episode_number}: <span>${this.escapeHtml(ep.name || 'Episode ' + ep.episode_number)}</span>`;
-        btn.onclick = () => {
-          this.switchEpisode(ep.episode_number);
-        };
-        grid.appendChild(btn);
-      });
+      // Update cinema header badge & title
+      const title = this.currentMedia?.title || this.currentMedia?.name || 'Show';
+      const cinemaTitle = document.getElementById('cinemaTitle');
+      if (cinemaTitle) {
+        cinemaTitle.textContent = `${title} — Season ${this.currentSeason}, Ep ${this.currentEpisode}`;
+      }
+
+      // Update URL hash smoothly
+      history.replaceState(null, '', `#/tv/${this.currentMedia.id}/${this.currentSeason}/${this.currentEpisode}`);
+
+      // Auto-update stream player if triggered by user dropdown interaction
+      if (autoPlay) {
+        this.loadCinemaStream();
+      }
     }
 
     switchEpisode(epNum) {
-      this.currentEpisode = epNum;
-      // Update URL without full reload
-      window.location.hash = `#/tv/${this.currentMedia.id}/${this.currentSeason}/${epNum}`;
+      this.currentEpisode = parseInt(epNum, 10) || 1;
+
+      // Update active state on episode buttons
+      document.querySelectorAll('#cinemaEpisodeGrid .ep-btn').forEach((btn, idx) => {
+        btn.classList.toggle('active', idx + 1 === this.currentEpisode);
+      });
+
+      // Update cinema header title
+      const title = this.currentMedia?.title || this.currentMedia?.name || 'Show';
+      const cinemaTitle = document.getElementById('cinemaTitle');
+      if (cinemaTitle) {
+        cinemaTitle.textContent = `${title} — Season ${this.currentSeason}, Ep ${this.currentEpisode}`;
+      }
+
+      // Update URL hash
+      history.replaceState(null, '', `#/tv/${this.currentMedia.id}/${this.currentSeason}/${this.currentEpisode}`);
+
+      // Immediately play the selected episode stream
+      this.loadCinemaStream();
     }
 
     toggleCinemaFullscreen() {
