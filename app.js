@@ -84,6 +84,11 @@
       this.adMode = localStorage.getItem('oasis_ad_mode') === 'true'; // false = clean default
       this.hasPoppedThisSession = false;
 
+      // Auth & Account State
+      this.currentUser = null;
+      this.authMode = 'login';
+      this.pendingCheckoutTier = 'vip_monthly';
+
       // Simulated Admin Analytics Store
       this.adminStats = {
         activeViewers: 142 + Math.floor(Math.random() * 45),
@@ -100,6 +105,10 @@
       this.setupGlobalEvents();
       this.updateWatchlistCounter();
       this.renderAdModeUI();
+
+      // Restore persisted session (if any) before routing so guards see currentUser
+      await this.restoreSession();
+      this.renderAuthUI();
 
       // Boot Client-Side Router
       window.addEventListener('hashchange', () => this.handleRoute());
@@ -189,6 +198,16 @@
           break;
 
         case 'admin':
+          if (!this.currentUser) {
+            this.openAuthModal('login', 'Please log in with admin credentials to access the Telemetry Hub.');
+            this.navigateTo('#/');
+            return;
+          }
+          if (this.currentUser.role !== 'admin') {
+            alert('⛔ Admin access required. Your account does not have permission to view the Telemetry Hub.');
+            this.navigateTo('#/');
+            return;
+          }
           this.switchView('adminView');
           document.title = 'OasisMovies — Partner & Ad Telemetry Hub';
           this.refreshAdminStats();
@@ -498,7 +517,7 @@
       });
     }
 
-    renderWatchlistView() {
+    async renderWatchlistView() {
       this.switchView('browseView');
       document.title = 'My Saved Watchlist — OasisMovies';
 
@@ -507,7 +526,21 @@
       const countEl = document.getElementById('browseCount');
       const grid = document.getElementById('browseGrid');
 
-      if (this.watchlist.length === 0) {
+      let items = this.watchlist;
+
+      // Cloud watchlist for VIP accounts — silently falls back to local on 403/failure
+      if (this.currentUser?.capabilities?.cloudWatchlist) {
+        countEl.textContent = 'Syncing cloud watchlist...';
+        const cloudItems = await this.loadCloudWatchlist();
+        if (cloudItems) {
+          items = cloudItems;
+          this.watchlist = cloudItems;
+          localStorage.setItem('oasis_watchlist', JSON.stringify(cloudItems));
+          this.updateWatchlistCounter();
+        }
+      }
+
+      if (items.length === 0) {
         grid.innerHTML = `
           <div class="empty-state">
             <p>Your watchlist is currently empty.</p>
@@ -518,9 +551,9 @@
         return;
       }
 
-      countEl.textContent = `${this.watchlist.length} titles saved`;
+      countEl.textContent = `${items.length} titles saved`;
       grid.innerHTML = '';
-      this.watchlist.forEach((item) => {
+      items.forEach((item) => {
         this.cacheItem(item);
         grid.appendChild(this.createCardElement(item));
       });
@@ -679,9 +712,19 @@
         if (e.key === 'Escape') {
           this.closeDetailModal();
           this.closeCheckoutModal();
+          this.closeAuthModal();
         } else if (e.key === '/' && document.activeElement !== searchInput) {
           e.preventDefault();
           searchInput?.focus();
+        }
+      });
+
+      ['authEmail', 'authPassword'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') this.submitAuth();
+          });
         }
       });
     }
@@ -722,6 +765,25 @@
 
       localStorage.setItem('oasis_watchlist', JSON.stringify(this.watchlist));
       this.updateWatchlistCounter();
+
+      // Best-effort cloud sync for VIP accounts
+      if (this.currentUser?.capabilities?.cloudWatchlist) {
+        const mediaType = item.media_type || 'movie';
+        if (idx >= 0) {
+          this.apiFetch(`/api/watchlist?tmdb_id=${encodeURIComponent(item.id)}&media_type=${encodeURIComponent(mediaType)}`, { method: 'DELETE' })
+            .catch((err) => console.warn('Cloud watchlist delete failed:', err));
+        } else {
+          this.apiFetch('/api/watchlist', {
+            method: 'POST',
+            body: JSON.stringify({
+              tmdb_id: item.id,
+              media_type: mediaType,
+              title: item.title || item.name,
+              poster_path: item.poster_path
+            })
+          }).catch((err) => console.warn('Cloud watchlist add failed:', err));
+        }
+      }
     }
 
     toggleCurrentBookmark() {
@@ -743,11 +805,213 @@
       if (countEl) countEl.textContent = this.watchlist.length;
     }
 
-    // --- VIP Pricing & Checkout Simulation ---
+    // --- Auth & Account State ---
+    getAuthToken() {
+      return localStorage.getItem('oasis_auth_token');
+    }
+
+    async apiFetch(path, opts = {}) {
+      const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+      const token = this.getAuthToken();
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(path, Object.assign({}, opts, { headers }));
+      let data = null;
+      try {
+        data = await res.json();
+      } catch (e) {
+        // Non-JSON response body — leave data as null
+      }
+      return { status: res.status, ok: res.ok, data };
+    }
+
+    async restoreSession() {
+      if (!this.getAuthToken()) return;
+      try {
+        const res = await this.apiFetch('/api/auth/me');
+        if (res.ok && res.data && res.data.user) {
+          this.currentUser = res.data.user;
+        } else if (res.status === 401) {
+          localStorage.removeItem('oasis_auth_token');
+        }
+      } catch (err) {
+        console.warn('Session restore failed:', err);
+      }
+    }
+
+    renderAuthUI() {
+      const loggedOut = document.getElementById('authNavLoggedOut');
+      const loggedIn = document.getElementById('authNavLoggedIn');
+      if (!loggedOut || !loggedIn) return;
+
+      if (this.currentUser) {
+        loggedOut.style.display = 'none';
+        loggedIn.style.display = 'flex';
+        document.getElementById('userChipEmail').textContent = this.currentUser.email;
+        document.getElementById('userChipRole').textContent = (this.currentUser.role || 'user').toUpperCase();
+      } else {
+        loggedOut.style.display = 'flex';
+        loggedIn.style.display = 'none';
+      }
+    }
+
+    openAuthModal(mode = 'login', message = '') {
+      this.switchAuthTab(mode);
+
+      const msg = document.getElementById('authMessage');
+      if (message) {
+        msg.textContent = message;
+        msg.style.display = 'block';
+      } else {
+        msg.style.display = 'none';
+      }
+
+      document.getElementById('authError').style.display = 'none';
+      document.getElementById('authModal').classList.add('active');
+      setTimeout(() => document.getElementById('authEmail')?.focus(), 50);
+    }
+
+    closeAuthModal() {
+      const modal = document.getElementById('authModal');
+      if (modal) modal.classList.remove('active');
+    }
+
+    switchAuthTab(mode) {
+      this.authMode = mode === 'register' ? 'register' : 'login';
+      document.getElementById('authTabLogin').classList.toggle('active', this.authMode === 'login');
+      document.getElementById('authTabRegister').classList.toggle('active', this.authMode === 'register');
+      document.getElementById('authSubmitBtn').textContent = this.authMode === 'register' ? 'Create Account' : 'Log In';
+      document.getElementById('authPassword').autocomplete = this.authMode === 'register' ? 'new-password' : 'current-password';
+      document.getElementById('authError').style.display = 'none';
+    }
+
+    async submitAuth() {
+      const email = document.getElementById('authEmail').value.trim();
+      const password = document.getElementById('authPassword').value;
+      const errBox = document.getElementById('authError');
+      const btn = document.getElementById('authSubmitBtn');
+      const showError = (msg) => {
+        errBox.textContent = msg;
+        errBox.style.display = 'block';
+      };
+
+      errBox.style.display = 'none';
+
+      if (!email || !email.includes('@')) {
+        showError('Please enter a valid email address.');
+        return;
+      }
+      if (!password) {
+        showError('Please enter your password.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = this.authMode === 'register' ? 'Creating Account...' : 'Logging In...';
+
+      try {
+        const endpoint = this.authMode === 'register' ? '/api/auth/register' : '/api/auth/login';
+        const res = await this.apiFetch(endpoint, {
+          method: 'POST',
+          body: JSON.stringify({ email, password })
+        });
+
+        if (res.ok && res.data && res.data.token) {
+          localStorage.setItem('oasis_auth_token', res.data.token);
+          this.currentUser = res.data.user;
+          document.getElementById('authPassword').value = '';
+          this.closeAuthModal();
+          this.renderAuthUI();
+          await this.syncWatchlistAfterLogin();
+          this.handleRoute();
+          return;
+        }
+
+        const code = res.data && res.data.error;
+        const messages = {
+          invalid_email: 'Please enter a valid email address.',
+          password_too_short: 'Password must be at least 8 characters.',
+          email_taken: 'An account with this email already exists — try logging in.',
+          invalid_credentials: 'Incorrect email or password.',
+          invalid_json: 'Something went wrong. Please try again.'
+        };
+        showError(messages[code] || 'Something went wrong. Please try again.');
+      } catch (err) {
+        console.error('Auth request failed:', err);
+        showError('Unable to reach the server. Check your connection and try again.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = this.authMode === 'register' ? 'Create Account' : 'Log In';
+      }
+    }
+
+    async logout() {
+      try {
+        await this.apiFetch('/api/auth/logout', { method: 'POST' });
+      } catch (err) {
+        console.warn('Logout request failed:', err);
+      }
+      localStorage.removeItem('oasis_auth_token');
+      this.currentUser = null;
+      this.renderAuthUI();
+      this.navigateTo('#/');
+    }
+
+    async syncWatchlistAfterLogin() {
+      if (!this.currentUser?.capabilities?.cloudWatchlist) return;
+
+      // Push local-only items up to the cloud, then adopt the cloud list
+      for (const item of this.watchlist) {
+        try {
+          await this.apiFetch('/api/watchlist', {
+            method: 'POST',
+            body: JSON.stringify({
+              tmdb_id: item.id,
+              media_type: item.media_type || 'movie',
+              title: item.title || item.name,
+              poster_path: item.poster_path
+            })
+          });
+        } catch (err) {
+          console.warn('Watchlist merge failed for item:', item.id, err);
+        }
+      }
+
+      await this.loadCloudWatchlist().then((cloudItems) => {
+        if (cloudItems) {
+          this.watchlist = cloudItems;
+          localStorage.setItem('oasis_watchlist', JSON.stringify(cloudItems));
+          this.updateWatchlistCounter();
+        }
+      });
+    }
+
+    async loadCloudWatchlist() {
+      // Returns mapped items on success, null on any failure (caller falls back to local)
+      try {
+        const res = await this.apiFetch('/api/watchlist');
+        if (!res.ok || !res.data || !Array.isArray(res.data.items)) return null;
+        return res.data.items.map((i) => ({
+          id: i.tmdb_id,
+          title: i.title,
+          poster_path: i.poster_path,
+          media_type: i.media_type
+        }));
+      } catch (err) {
+        console.warn('Cloud watchlist fetch failed:', err);
+        return null;
+      }
+    }
+
+    // --- VIP Pricing & Checkout ---
     openCheckoutModal(tier) {
       const modal = document.getElementById('checkoutModal');
       const title = document.getElementById('checkoutTierTitle');
       const price = document.getElementById('checkoutTierPrice');
+      const notice = document.getElementById('checkoutNotice');
+
+      if (notice) notice.style.display = 'none';
+      this.pendingCheckoutTier = tier === 'annual' ? 'vip_annual' : 'vip_monthly';
 
       if (tier === 'annual') {
         title.textContent = 'Oasis VIP Annual Pass';
@@ -765,19 +1029,49 @@
       if (modal) modal.classList.remove('active');
     }
 
-    simulateUpgrade() {
-      const email = document.getElementById('checkoutEmail').value.trim();
-      if (!email || !email.includes('@')) {
-        alert('Please enter a valid email address.');
+    async startCheckout() {
+      const notice = document.getElementById('checkoutNotice');
+
+      if (!this.currentUser) {
+        this.closeCheckoutModal();
+        this.openAuthModal('register', 'Create an account or log in to continue to checkout.');
         return;
       }
 
-      this.isVIP = true;
-      localStorage.setItem('oasis_is_vip', 'true');
-      this.closeCheckoutModal();
+      const btn = document.getElementById('checkoutConfirmBtn');
+      if (notice) notice.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'Preparing Secure Checkout...';
 
-      alert(`🎉 Congratulations!\n\nVIP Access Activated for ${email}.\n• 100% Ad-Free Experience Active\n• 4K VIP Servers Unlocked\n• Cloud Sync Enabled`);
-      this.navigateTo('#/');
+      try {
+        const res = await this.apiFetch('/api/checkout/create-session', {
+          method: 'POST',
+          body: JSON.stringify({ tier: this.pendingCheckoutTier })
+        });
+
+        if (res.ok && res.data && res.data.checkout_url) {
+          window.location.href = res.data.checkout_url;
+          return;
+        }
+
+        if (res.status === 503 && res.data && res.data.error === 'checkout_not_enabled') {
+          notice.textContent = "Online checkout isn't live yet — membership upgrades are currently handled manually. Contact oasisaisolutions@gmail.com";
+          notice.style.display = 'block';
+        } else if (res.status === 401) {
+          this.closeCheckoutModal();
+          this.openAuthModal('login', 'Your session has expired — please log in again to continue to checkout.');
+        } else {
+          notice.textContent = 'Something went wrong starting checkout. Please try again.';
+          notice.style.display = 'block';
+        }
+      } catch (err) {
+        console.error('Checkout session failed:', err);
+        notice.textContent = 'Unable to reach the checkout service. Check your connection and try again.';
+        notice.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Confirm & Activate VIP Access';
+      }
     }
 
     // --- Admin Telemetry Portal ---
@@ -834,6 +1128,68 @@
               <span>Online • ${latency}ms</span>
             </div>
           </div>
+        `;
+        })
+        .join('');
+
+      // Hydrate real account metrics from the backend (non-blocking)
+      this.loadAdminAccountMetrics();
+    }
+
+    async loadAdminAccountMetrics() {
+      const signupsBody = document.getElementById('liveSignupsBody');
+      if (!signupsBody) return;
+
+      const showInlineError = (msg) => {
+        signupsBody.innerHTML = `<tr><td colspan="3" class="live-metrics-error">${this.escapeHtml(msg)}</td></tr>`;
+      };
+
+      let res;
+      try {
+        res = await this.apiFetch('/api/admin/metrics');
+      } catch (err) {
+        console.error('Admin metrics fetch failed:', err);
+        showInlineError('Unable to reach the account metrics API. Check that the backend is deployed.');
+        return;
+      }
+
+      if (!res.ok || !res.data) {
+        showInlineError(
+          res.status === 403
+            ? 'Admin access required — this account cannot view live account metrics.'
+            : 'Live account metrics are unavailable right now. Hit Refresh Metrics to retry.'
+        );
+        return;
+      }
+
+      const m = res.data;
+      document.getElementById('lmUsersTotal').textContent = (m.users?.total ?? 0).toLocaleString();
+      document.getElementById('lmUsersVip').textContent = `${(m.users?.vip ?? 0).toLocaleString()} VIP`;
+      document.getElementById('lmSessionsActive').textContent = (m.sessions?.active ?? 0).toLocaleString();
+      document.getElementById('lmWatchlistItems').textContent = (m.watchlist?.items ?? 0).toLocaleString();
+      document.getElementById('lmSubsActive').textContent = (m.subscriptions?.active ?? 0).toLocaleString();
+
+      const updated = document.getElementById('liveMetricsUpdated');
+      if (updated && m.generated_at) {
+        updated.textContent = `Updated ${new Date(m.generated_at).toLocaleString()}`;
+      }
+
+      const signups = Array.isArray(m.recent_signups) ? m.recent_signups : [];
+      if (signups.length === 0) {
+        signupsBody.innerHTML = '<tr><td colspan="3">No signups yet.</td></tr>';
+        return;
+      }
+
+      signupsBody.innerHTML = signups
+        .map((s) => {
+          const role = (s.role || 'user').toUpperCase();
+          const badgeClass = s.role === 'admin' ? 'type-badge' : s.role === 'vip' ? 'rating-badge' : 'quality-badge';
+          return `
+          <tr>
+            <td style="color: #fff; font-weight: 600;">${this.escapeHtml(s.email)}</td>
+            <td><span class="badge ${badgeClass}">${this.escapeHtml(role)}</span></td>
+            <td>${this.escapeHtml(s.created_at ? new Date(s.created_at).toLocaleString() : '—')}</td>
+          </tr>
         `;
         })
         .join('');

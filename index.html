@@ -41,6 +41,17 @@
         <button class="clear-search-btn" id="clearSearchBtn" onclick="app.clearSearch()" style="display: none;">✕</button>
       </div>
 
+      <div class="auth-nav" id="authNavLoggedOut">
+        <button class="btn btn-secondary btn-sm" onclick="app.openAuthModal('login')">Log In</button>
+        <button class="btn btn-primary btn-sm" onclick="app.openAuthModal('register')">Sign Up</button>
+      </div>
+
+      <div class="user-chip" id="authNavLoggedIn" style="display: none;">
+        <span class="user-chip-email" id="userChipEmail"></span>
+        <span class="badge user-chip-role" id="userChipRole">USER</span>
+        <button class="btn btn-secondary btn-sm" onclick="app.logout()">Log Out</button>
+      </div>
+
       <div class="mode-toggle-pill" id="modePill" onclick="app.toggleAdMode()" title="Toggle between Ad-Free Personal Mode and Ad-Monetization Test Mode">
         <span class="mode-badge" id="modeBadge">AD-FREE MODE</span>
       </div>
@@ -324,25 +335,11 @@
               <p class="checkout-sub" id="checkoutTierPrice">$4.99 / month • Billed securely</p>
               
               <div class="checkout-form">
-                <div class="form-group">
-                  <label for="checkoutEmail">Your Email Address (for VIP login):</label>
-                  <input type="email" id="checkoutEmail" placeholder="you@domain.com" required>
-                </div>
-                <div class="form-group">
-                  <label>Select Payment Rail:</label>
-                  <div class="rail-options">
-                    <label class="rail-option active">
-                      <input type="radio" name="rail" checked> 💳 Card (Air-Gapped Merchant)
-                    </label>
-                    <label class="rail-option">
-                      <input type="radio" name="rail"> ⚡ Crypto (BTC / USDT / ETH)
-                    </label>
-                  </div>
-                </div>
                 <div class="notice-box">
                   🛡️ <strong>Air-Gapped Privacy:</strong> Payment is processed through isolated merchant rails with zero recurring lock-in. Cancel anytime with one click.
                 </div>
-                <button class="btn btn-primary full-width" onclick="app.simulateUpgrade()">Confirm & Activate VIP Access</button>
+                <div class="notice-box checkout-notice" id="checkoutNotice" style="display: none;"></div>
+                <button class="btn btn-primary full-width" id="checkoutConfirmBtn" onclick="app.startCheckout()">Confirm & Activate VIP Access</button>
               </div>
             </div>
           </div>
@@ -393,6 +390,50 @@
             <div class="kpi-label">Est. Adsterra/Monetag Revenue</div>
             <div class="kpi-value" id="kpiEstRevenue">$10.42</div>
             <div class="kpi-trend positive">Avg CPM: $1.85 • $312/mo Run Rate</div>
+          </div>
+        </div>
+
+        <!-- Live Account Metrics (Backend) -->
+        <div class="admin-section-box" id="liveMetricsBox">
+          <div class="box-header">
+            <h3>👥 Live Account Metrics</h3>
+            <span class="box-sub" id="liveMetricsUpdated">Real data from the OasisMovies account backend</span>
+          </div>
+          <div class="admin-kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-label">Registered Users</div>
+              <div class="kpi-value" id="lmUsersTotal">—</div>
+              <div class="kpi-trend" id="lmUsersVip">— VIP</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Active Sessions</div>
+              <div class="kpi-value" id="lmSessionsActive">—</div>
+              <div class="kpi-trend">Logged-in tokens, live</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Cloud Watchlist Items</div>
+              <div class="kpi-value" id="lmWatchlistItems">—</div>
+              <div class="kpi-trend">Synced across devices</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Active Subscriptions</div>
+              <div class="kpi-value" id="lmSubsActive">—</div>
+              <div class="kpi-trend">VIP billing agreements</div>
+            </div>
+          </div>
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Signed Up</th>
+                </tr>
+              </thead>
+              <tbody id="liveSignupsBody">
+                <tr><td colspan="3">Loading account metrics...</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -459,6 +500,32 @@
           <button class="btn btn-primary" id="detailPlayBtn">Watch Now</button>
           <button class="btn btn-secondary" id="detailBookmarkBtn">Save to List</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auth Modal (Log In / Sign Up) -->
+  <div class="modal" id="authModal">
+    <div class="modal-backdrop" onclick="app.closeAuthModal()"></div>
+    <div class="detail-card auth-card">
+      <button class="btn-close-modal" onclick="app.closeAuthModal()">✕</button>
+      <div class="auth-body">
+        <span class="badge vip-pill">OASIS ACCOUNT</span>
+        <div class="auth-tabs">
+          <button class="auth-tab active" id="authTabLogin" onclick="app.switchAuthTab('login')">Log In</button>
+          <button class="auth-tab" id="authTabRegister" onclick="app.switchAuthTab('register')">Sign Up</button>
+        </div>
+        <div class="auth-message" id="authMessage" style="display: none;"></div>
+        <div class="form-group">
+          <label for="authEmail">Email Address</label>
+          <input type="email" id="authEmail" placeholder="you@domain.com" autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="authPassword">Password</label>
+          <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <div class="auth-error" id="authError" style="display: none;"></div>
+        <button class="btn btn-primary full-width" id="authSubmitBtn" onclick="app.submitAuth()">Log In</button>
       </div>
     </div>
   </div>
