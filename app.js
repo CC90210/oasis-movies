@@ -86,11 +86,11 @@
       this.authMode = 'login';
       this.pendingCheckoutTier = 'vip_monthly';
 
-      // Simulated Admin Analytics Store
+      // Factual Admin Analytics Store
       this.adminStats = {
-        activeViewers: 142 + Math.floor(Math.random() * 45),
-        dailyPlays: 3840 + Math.floor(Math.random() * 300),
-        adImpressions: 5120 + Math.floor(Math.random() * 400),
+        activeViewers: 0,
+        dailyPlays: 0,
+        adImpressions: 0,
         cpm: 1.85
       };
 
@@ -330,6 +330,42 @@
       iframe.onload = () => {
         if (loader) loader.style.display = 'none';
       };
+
+      // Factual real-time playback telemetry logged to Turso (non-blocking)
+      const mediaTitle = this.currentMedia.title || this.currentMedia.name || 'Untitled Stream';
+      this.apiFetch('/api/analytics/event', {
+        method: 'POST',
+        body: JSON.stringify({
+          event_type: 'stream_start',
+          tmdb_id: this.currentMedia.id,
+          title: mediaTitle,
+          media_type: isTV ? 'tv' : 'movie'
+        })
+      }).catch((err) => console.warn('Stream start telemetry log failed:', err));
+
+      // Log partner sponsor ad impression if banner is present
+      if (document.getElementById('partnerAdBanner')) {
+        this.apiFetch('/api/analytics/event', {
+          method: 'POST',
+          body: JSON.stringify({
+            event_type: 'ad_impression',
+            tmdb_id: this.currentMedia.id,
+            title: 'AliExpress Home Cinema Deals',
+            media_type: isTV ? 'tv' : 'movie'
+          })
+        }).catch((err) => console.warn('Ad impression telemetry log failed:', err));
+      }
+    }
+
+    logAdClick() {
+      this.apiFetch('/api/analytics/event', {
+        method: 'POST',
+        body: JSON.stringify({
+          event_type: 'ad_impression',
+          title: 'AliExpress Cinema Banner Click',
+          media_type: 'movie'
+        })
+      }).catch((err) => console.warn('Ad click telemetry log failed:', err));
     }
 
     changeServer(serverKey) {
@@ -1298,124 +1334,117 @@
     }
 
     // --- Admin Telemetry Portal ---
-    refreshAdminStats() {
-      // Simulate live jitter for dashboard demonstration
-      this.adminStats.activeViewers += Math.floor(Math.random() * 9) - 4;
-      this.adminStats.dailyPlays += Math.floor(Math.random() * 8) + 1;
-      this.adminStats.adImpressions += Math.floor(Math.random() * 12) + 2;
-
-      const rev = (this.adminStats.adImpressions / 1000) * this.adminStats.cpm;
-
-      document.getElementById('kpiActiveViewers').textContent = this.adminStats.activeViewers.toLocaleString();
-      document.getElementById('kpiDailyPlays').textContent = this.adminStats.dailyPlays.toLocaleString();
-      document.getElementById('kpiAdImpressions').textContent = this.adminStats.adImpressions.toLocaleString();
-      document.getElementById('kpiEstRevenue').textContent = `$${rev.toFixed(2)}`;
-
-      // Populate Top Streamed Table
+    async refreshAdminStats() {
+      const kpiActiveViewers = document.getElementById('kpiActiveViewers');
+      const kpiDailyPlays = document.getElementById('kpiDailyPlays');
+      const kpiAdImpressions = document.getElementById('kpiAdImpressions');
+      const kpiEstRevenue = document.getElementById('kpiEstRevenue');
       const tbody = document.getElementById('topStreamedBody');
-      const sampleTop = [
-        { rank: 1, title: 'UNABOMBER (2026)', type: 'Movie', rating: '8.8', plays: '1,420', duration: '1h 38m' },
-        { rank: 2, title: 'Resident Evil (2026)', type: 'Movie', rating: '7.6', plays: '984', duration: '1h 45m' },
-        { rank: 3, title: 'Stranger Things (S5)', type: 'TV Series', rating: '8.9', plays: '812', duration: '58m' },
-        { rank: 4, title: 'Interstellar', type: 'Movie', rating: '8.7', plays: '750', duration: '2h 49m' },
-        { rank: 5, title: 'Breaking Bad', type: 'TV Series', rating: '9.5', plays: '620', duration: '49m' },
-        { rank: 6, title: 'Inception', type: 'Movie', rating: '8.8', plays: '540', duration: '2h 28m' },
-        { rank: 7, title: 'Severance', type: 'TV Series', rating: '8.7', plays: '490', duration: '52m' }
-      ];
-
-      tbody.innerHTML = sampleTop
-        .map(
-          (t) => `
-        <tr>
-          <td><strong>#${t.rank}</strong></td>
-          <td style="color: #fff; font-weight: 600;">${t.title}</td>
-          <td><span class="badge ${t.type === 'Movie' ? 'type-badge' : 'quality-badge'}">${t.type}</span></td>
-          <td>★ ${t.rating}</td>
-          <td><strong>${t.plays}</strong></td>
-          <td>${t.duration}</td>
-        </tr>
-      `
-        )
-        .join('');
-
-      // Populate Server Health
       const serverGrid = document.getElementById('serverHealthGrid');
-      serverGrid.innerHTML = Object.entries(SERVERS)
-        .map(([k, s]) => {
-          const latency = 28 + Math.floor(Math.random() * 35);
-          return `
-          <div class="server-health-card">
-            <span class="server-health-name">${s.name.split('—')[0].trim()}</span>
-            <div class="server-health-meta">
-              <span class="status-indicator online"></span>
-              <span>Online • ${latency}ms</span>
-            </div>
-          </div>
-        `;
-        })
-        .join('');
-
-      // Hydrate real account metrics from the backend (non-blocking)
-      this.loadAdminAccountMetrics();
-    }
-
-    async loadAdminAccountMetrics() {
       const signupsBody = document.getElementById('liveSignupsBody');
-      if (!signupsBody) return;
 
-      const showInlineError = (msg) => {
-        signupsBody.innerHTML = `<tr><td colspan="3" class="live-metrics-error">${this.escapeHtml(msg)}</td></tr>`;
-      };
+      // Populate Server Health Matrix cleanly (without fake random latency jitter)
+      if (serverGrid) {
+        serverGrid.innerHTML = Object.entries(SERVERS)
+          .map(([k, s]) => `
+            <div class="server-health-card">
+              <span class="server-health-name">${this.escapeHtml(s.name.split('—')[0].trim())}</span>
+              <div class="server-health-meta">
+                <span class="status-indicator online"></span>
+                <span>Active Provider</span>
+              </div>
+            </div>
+          `)
+          .join('');
+      }
 
-      let res;
+      // Fetch 100% factual telemetry and user metrics from Turso
       try {
-        res = await this.apiFetch('/api/admin/metrics');
+        const res = await this.apiFetch('/api/admin/metrics');
+        if (!res.ok || !res.data) {
+          if (signupsBody) {
+            signupsBody.innerHTML = `<tr><td colspan="3" class="live-metrics-error">${this.escapeHtml(
+              res.status === 403 ? 'Admin access required.' : 'Live metrics unavailable right now.'
+            )}</td></tr>`;
+          }
+          return;
+        }
+
+        const m = res.data;
+        const tel = m.telemetry || {};
+
+        if (kpiActiveViewers) kpiActiveViewers.textContent = (tel.active_viewers ?? 0).toLocaleString();
+        if (kpiDailyPlays) kpiDailyPlays.textContent = (tel.stream_starts_today ?? 0).toLocaleString();
+        if (kpiAdImpressions) kpiAdImpressions.textContent = (tel.ad_impressions_today ?? 0).toLocaleString();
+        if (kpiEstRevenue) kpiEstRevenue.textContent = `$${(tel.est_ad_revenue_today ?? 0).toFixed(2)}`;
+
+        // Populate Top Streamed Table with verified real data
+        if (tbody) {
+          const topList = Array.isArray(m.top_streamed) ? m.top_streamed : [];
+          if (topList.length === 0) {
+            tbody.innerHTML = `
+              <tr>
+                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                  No verified streams logged yet today. Real playback counts populate here as users watch.
+                </td>
+              </tr>
+            `;
+          } else {
+            tbody.innerHTML = topList
+              .map(
+                (t, idx) => `
+              <tr>
+                <td><strong>#${idx + 1}</strong></td>
+                <td style="color: #fff; font-weight: 600;">${this.escapeHtml(t.title || 'Untitled')}</td>
+                <td><span class="badge ${t.media_type === 'tv' ? 'rating-badge' : 'type-badge'}">${t.media_type === 'tv' ? 'TV Series' : 'Movie'}</span></td>
+                <td>★ Verified</td>
+                <td><strong>${(t.plays || 1).toLocaleString()}</strong></td>
+                <td>Live stream</td>
+              </tr>
+            `
+              )
+              .join('');
+          }
+        }
+
+        // Live account metrics
+        const lmUsersTotal = document.getElementById('lmUsersTotal');
+        const lmUsersVip = document.getElementById('lmUsersVip');
+        const lmSessionsActive = document.getElementById('lmSessionsActive');
+        const lmWatchlistItems = document.getElementById('lmWatchlistItems');
+        const lmSubsActive = document.getElementById('lmSubsActive');
+        const updated = document.getElementById('liveMetricsUpdated');
+
+        if (lmUsersTotal) lmUsersTotal.textContent = (m.users?.total ?? 0).toLocaleString();
+        if (lmUsersVip) lmUsersVip.textContent = `${(m.users?.vip ?? 0).toLocaleString()} VIP`;
+        if (lmSessionsActive) lmSessionsActive.textContent = (m.sessions?.active ?? 0).toLocaleString();
+        if (lmWatchlistItems) lmWatchlistItems.textContent = (m.watchlist?.items ?? 0).toLocaleString();
+        if (lmSubsActive) lmSubsActive.textContent = (m.subscriptions?.active ?? 0).toLocaleString();
+        if (updated && m.generated_at) updated.textContent = `Updated ${new Date(m.generated_at).toLocaleTimeString()} (Turso live)`;
+
+        if (signupsBody) {
+          const signups = Array.isArray(m.recent_signups) ? m.recent_signups : [];
+          if (signups.length === 0) {
+            signupsBody.innerHTML = '<tr><td colspan="3">No registered users yet.</td></tr>';
+          } else {
+            signupsBody.innerHTML = signups
+              .map((s) => {
+                const role = (s.role || 'user').toUpperCase();
+                const badgeClass = s.role === 'admin' ? 'type-badge' : s.role === 'vip' ? 'rating-badge' : 'quality-badge';
+                return `
+                <tr>
+                  <td style="color: #fff; font-weight: 600;">${this.escapeHtml(s.email)}</td>
+                  <td><span class="badge ${badgeClass}">${this.escapeHtml(role)}</span></td>
+                  <td>${this.escapeHtml(s.created_at ? new Date(s.created_at).toLocaleString() : '—')}</td>
+                </tr>
+              `;
+              })
+              .join('');
+          }
+        }
       } catch (err) {
-        console.error('Admin metrics fetch failed:', err);
-        showInlineError('Unable to reach the account metrics API. Check that the backend is deployed.');
-        return;
+        console.error('Error refreshing admin metrics:', err);
       }
-
-      if (!res.ok || !res.data) {
-        showInlineError(
-          res.status === 403
-            ? 'Admin access required — this account cannot view live account metrics.'
-            : 'Live account metrics are unavailable right now. Hit Refresh Metrics to retry.'
-        );
-        return;
-      }
-
-      const m = res.data;
-      document.getElementById('lmUsersTotal').textContent = (m.users?.total ?? 0).toLocaleString();
-      document.getElementById('lmUsersVip').textContent = `${(m.users?.vip ?? 0).toLocaleString()} VIP`;
-      document.getElementById('lmSessionsActive').textContent = (m.sessions?.active ?? 0).toLocaleString();
-      document.getElementById('lmWatchlistItems').textContent = (m.watchlist?.items ?? 0).toLocaleString();
-      document.getElementById('lmSubsActive').textContent = (m.subscriptions?.active ?? 0).toLocaleString();
-
-      const updated = document.getElementById('liveMetricsUpdated');
-      if (updated && m.generated_at) {
-        updated.textContent = `Updated ${new Date(m.generated_at).toLocaleString()}`;
-      }
-
-      const signups = Array.isArray(m.recent_signups) ? m.recent_signups : [];
-      if (signups.length === 0) {
-        signupsBody.innerHTML = '<tr><td colspan="3">No signups yet.</td></tr>';
-        return;
-      }
-
-      signupsBody.innerHTML = signups
-        .map((s) => {
-          const role = (s.role || 'user').toUpperCase();
-          const badgeClass = s.role === 'admin' ? 'type-badge' : s.role === 'vip' ? 'rating-badge' : 'quality-badge';
-          return `
-          <tr>
-            <td style="color: #fff; font-weight: 600;">${this.escapeHtml(s.email)}</td>
-            <td><span class="badge ${badgeClass}">${this.escapeHtml(role)}</span></td>
-            <td>${this.escapeHtml(s.created_at ? new Date(s.created_at).toLocaleString() : '—')}</td>
-          </tr>
-        `;
-        })
-        .join('');
     }
 
     exportSponsorKit() {

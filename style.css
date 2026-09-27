@@ -2185,3 +2185,95 @@ body.drawer-open {
   .nav-vip-pill { padding: 0 10px; }
   .brand-logo .logo-icon { display: none; }
 }
+
+/* Partner / Sponsor Ad Banner (AliExpress & Direct Brand Takeovers) */
+.partner-ad-banner {
+  margin: 28px 0;
+  padding: 22px 24px;
+  background: linear-gradient(135deg, rgba(255, 77, 79, 0.09) 0%, rgba(20, 20, 32, 0.95) 100%);
+  border: 1px solid rgba(255, 77, 79, 0.28);
+  border-radius: var(--radius-md);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.36);
+}
+
+.partner-ad-banner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #ff4742, #ff8a00, #ff4742);
+}
+
+.partner-ad-banner .ad-tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #ff7875;
+  margin-bottom: 10px;
+}
+
+.partner-ad-banner .ad-content-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.partner-ad-banner .ad-text-block {
+  flex: 1;
+  min-width: 260px;
+}
+
+.partner-ad-banner .ad-brand-pill {
+  display: inline-block;
+  padding: 3px 8px;
+  background: rgba(255, 71, 66, 0.2);
+  border: 1px solid rgba(255, 71, 66, 0.4);
+  border-radius: 4px;
+  color: #ff9c6e;
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.partner-ad-banner .ad-headline {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 6px 0;
+  line-height: 1.35;
+}
+
+.partner-ad-banner .ad-subline {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.partner-ad-banner .ad-cta-btn {
+  background: linear-gradient(135deg, #ff4742 0%, #d4380d 100%);
+  border: none;
+  color: #fff;
+  font-weight: 700;
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.partner-ad-banner .ad-cta-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 71, 66, 0.4);
+  color: #fff;
+}
+
