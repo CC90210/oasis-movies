@@ -164,6 +164,15 @@
           this.renderCatalogView('All-Time Masterpieces', '/movie/top_rated', 'movie', 'Home › Top Rated');
           break;
 
+        case 'classics':
+          this.renderCatalogView(
+            'HD Classics', 
+            '/discover/movie?sort_by=popularity.desc&primary_release_date.lte=2000-12-31&vote_count.gte=500', 
+            'movie', 
+            'Home › Classics'
+          );
+          break;
+
         case 'genre':
           const genreId = parseInt(segments[1], 10);
           const genreName = GENRE_MAP[genreId] || 'Genre';
@@ -555,10 +564,10 @@
       countEl.textContent = 'Loading titles...';
       grid.innerHTML = '<div class="loading-state">Fetching from TMDB...</div>';
 
-      // Fetch up to 4 pages (80 results) for deeper catalog variety
+      // Fetch up to 10 pages (200 results) for massive catalog variety
       const fetchPromises = [];
       const hasQuery = endpoint.includes('?');
-      for (let page = 1; page <= 4; page++) {
+      for (let page = 1; page <= 10; page++) {
         fetchPromises.push(this.fetchTMDB(`${endpoint}${hasQuery ? '&' : '?'}page=${page}`));
       }
 
