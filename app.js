@@ -324,6 +324,10 @@
         ? server.tv(this.currentMedia.id, this.currentSeason, this.currentEpisode)
         : server.movie(this.currentMedia.id);
 
+      // STRICT POPUP SUPPRESSION:
+      // Omit allow-popups and allow-top-navigation so third-party embeds cannot trigger popups, new tabs, or redirects.
+      iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
+
       if (loader) loader.style.display = 'flex';
       iframe.src = streamUrl;
 
@@ -892,6 +896,14 @@
       badge.dataset.tier = tier.toLowerCase();
 
       document.getElementById('accountVipItem').textContent = role === 'user' ? '👑 VIP Membership' : '👑 Manage VIP';
+
+      // Zero-ad and zero-popup guarantee for Admin and VIP accounts
+      if (isAdmin || role === 'vip') {
+        window.open = function() {
+          console.warn('[OasisGuard] Blocked unauthorized window.open popup attempt.');
+          return null;
+        };
+      }
     }
 
     // --- Account Menu & Mobile Drawer ---
