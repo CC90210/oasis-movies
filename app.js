@@ -228,6 +228,17 @@
           el.style.display = v === activeViewId ? 'block' : 'none';
         }
       });
+
+      // Terminate audio and stream execution immediately when navigating away from watchView
+      if (activeViewId !== 'watchView') {
+        const iframe = document.getElementById('cinemaIframe');
+        if (iframe && iframe.src && iframe.src !== 'about:blank') {
+          iframe.src = 'about:blank';
+        }
+        const loader = document.getElementById('cinemaLoader');
+        if (loader) loader.style.display = 'none';
+      }
+
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
@@ -246,6 +257,12 @@
     // --- Dedicated Cinema Watch Sub-Page ---
     async renderWatchView(id, mediaType = 'movie', season = 1, episode = 1) {
       this.switchView('watchView');
+
+      // Clear previous title stream immediately so audio cuts off instantly
+      if (!this.currentMedia || this.currentMedia.id !== id) {
+        const iframe = document.getElementById('cinemaIframe');
+        if (iframe) iframe.src = 'about:blank';
+      }
 
       let media = this.mediaCache.get(String(id));
       if (!media) {
