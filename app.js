@@ -1289,37 +1289,18 @@
       const btn = document.getElementById('checkoutConfirmBtn');
       if (notice) notice.style.display = 'none';
       btn.disabled = true;
-      btn.textContent = 'Preparing Secure Checkout...';
+      btn.textContent = 'Redirecting to Secure Stripe Checkout...';
 
-      try {
-        const res = await this.apiFetch('/api/checkout/create-session', {
-          method: 'POST',
-          body: JSON.stringify({ tier: this.pendingCheckoutTier })
-        });
+      // Live Stripe hosted checkout links generated from official OASIS Stripe account
+      const STRIPE_LINKS = {
+        vip_monthly: 'https://buy.stripe.com/5kQ3cv7e96Dr5pb62O2kw08',
+        vip_annual: 'https://buy.stripe.com/28E3cv0PLd1P9Fr9f02kw09',
+        donate: 'https://buy.stripe.com/4gMbJ15618LzdVH1My2kw0a'
+      };
 
-        if (res.ok && res.data && res.data.checkout_url) {
-          window.location.href = res.data.checkout_url;
-          return;
-        }
-
-        if (res.status === 503 && res.data && res.data.error === 'checkout_not_enabled') {
-          notice.textContent = "Online checkout isn't live yet — membership upgrades are currently handled manually. Contact oasisaisolutions@gmail.com";
-          notice.style.display = 'block';
-        } else if (res.status === 401) {
-          this.closeCheckoutModal();
-          this.openAuthModal('login', 'Your session has expired — please log in again to continue to checkout.');
-        } else {
-          notice.textContent = 'Something went wrong starting checkout. Please try again.';
-          notice.style.display = 'block';
-        }
-      } catch (err) {
-        console.error('Checkout session failed:', err);
-        notice.textContent = 'Unable to reach the checkout service. Check your connection and try again.';
-        notice.style.display = 'block';
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Confirm & Activate VIP Access';
-      }
+      const targetUrl = STRIPE_LINKS[this.pendingCheckoutTier] || STRIPE_LINKS.vip_monthly;
+      const checkoutUrlWithEmail = `${targetUrl}?prefilled_email=${encodeURIComponent(this.currentUser.email)}`;
+      window.location.href = checkoutUrlWithEmail;
     }
 
     // --- Admin Telemetry Portal ---
