@@ -324,9 +324,8 @@
         ? server.tv(this.currentMedia.id, this.currentSeason, this.currentEpisode)
         : server.movie(this.currentMedia.id);
 
-      // STRICT POPUP SUPPRESSION:
-      // Omit allow-popups and allow-top-navigation so third-party embeds cannot trigger popups, new tabs, or redirects.
-      iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
+      // Ensure iframe is completely unsandboxed so video stream plays without provider anti-tamper blocks
+      iframe.removeAttribute('sandbox');
 
       if (loader) loader.style.display = 'flex';
       iframe.src = streamUrl;
