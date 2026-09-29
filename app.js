@@ -20,8 +20,8 @@
   const SERVERS = {
     vidlink: {
       name: 'Server 1 — VidLink (Ultra Fast, Clean)',
-      movie: (id) => `https://vidlink.pro/movie/${id}?primaryColor=8b5cf6&secondaryColor=151926`,
-      tv: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?primaryColor=8b5cf6&secondaryColor=151926`
+      movie: (id) => `https://vidlink.pro/movie/${id}?primaryColor=8b5cf6&secondaryColor=151926&autoplay=false`,
+      tv: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?primaryColor=8b5cf6&secondaryColor=151926&autoplay=false`
     },
     embedsu: {
       name: 'Server 2 — Embed.su (Multi-Source 4K)',
@@ -350,8 +350,13 @@
         ? server.tv(this.currentMedia.id, this.currentSeason, this.currentEpisode)
         : server.movie(this.currentMedia.id);
 
-      // Ensure iframe is completely unsandboxed so video stream plays without provider anti-tamper blocks
-      iframe.removeAttribute('sandbox');
+      // For VIPs and Admins, use strict sandbox to block pop-up ads.
+      // Other users get unsandboxed to prevent provider anti-tamper blocks.
+      if (this.currentUser && (this.currentUser.role === 'admin' || this.currentUser.role === 'vip')) {
+        iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation allow-forms');
+      } else {
+        iframe.removeAttribute('sandbox');
+      }
 
       if (loader) loader.style.display = 'flex';
       iframe.src = streamUrl;
