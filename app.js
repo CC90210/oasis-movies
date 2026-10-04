@@ -350,13 +350,7 @@
         ? server.tv(this.currentMedia.id, this.currentSeason, this.currentEpisode)
         : server.movie(this.currentMedia.id);
 
-      // For VIPs and Admins, use strict sandbox to block pop-up ads.
-      // Other users get unsandboxed to prevent provider anti-tamper blocks.
-      if (this.currentUser && (this.currentUser.role === 'admin' || this.currentUser.role === 'vip')) {
-        iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation allow-forms');
-      } else {
-        iframe.removeAttribute('sandbox');
-      }
+      iframe.removeAttribute('sandbox');
 
       if (loader) loader.style.display = 'flex';
       iframe.src = streamUrl;
