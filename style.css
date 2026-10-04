@@ -2277,3 +2277,42 @@ body.drawer-open {
   color: #fff;
 }
 
+
+/* Fullscreen cinema player */
+#cinemaBox:fullscreen,
+#cinemaBox:-webkit-full-screen {
+  border-radius: 0;
+  margin: 0;
+  border: none;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#cinemaBox:fullscreen .cinema-frame-wrapper,
+#cinemaBox:-webkit-full-screen .cinema-frame-wrapper {
+  aspect-ratio: auto;
+  flex: 1;
+  height: 100%;
+}
+
+/* Pseudo-fullscreen fallback (iPhone Safari) */
+#cinemaBox.pseudo-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  border-radius: 0;
+  margin: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+}
+
+#cinemaBox.pseudo-fullscreen .cinema-frame-wrapper {
+  aspect-ratio: auto;
+  flex: 1;
+  height: 100%;
+}

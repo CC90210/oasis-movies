@@ -507,10 +507,33 @@
 
     toggleCinemaFullscreen() {
       const box = document.getElementById('cinemaBox');
-      if (!document.fullscreenElement) {
-        box.requestFullscreen().catch((err) => console.warn('Fullscreen error:', err));
+      if (!box) return;
+
+      if (document.fullscreenElement || document.webkitFullscreenElement || box.classList.contains('pseudo-fullscreen')) {
+        if (document.exitFullscreen) document.exitFullscreen();
+        if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        box.classList.remove('pseudo-fullscreen');
+        document.body.style.overflow = '';
+        return;
+      }
+
+      const req = box.requestFullscreen || box.webkitRequestFullscreen || box.mozRequestFullScreen;
+      if (req) {
+        try {
+          const p = req.call(box);
+          if (p && p.catch) {
+            p.catch(() => {
+              box.classList.add('pseudo-fullscreen');
+              document.body.style.overflow = 'hidden';
+            });
+          }
+        } catch (err) {
+          box.classList.add('pseudo-fullscreen');
+          document.body.style.overflow = 'hidden';
+        }
       } else {
-        document.exitFullscreen();
+        box.classList.add('pseudo-fullscreen');
+        document.body.style.overflow = 'hidden';
       }
     }
 
